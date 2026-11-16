@@ -1,0 +1,157 @@
+name: ci-cd
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC -> AWS, no long-lived keys
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+jobs:
+  test:
+    name: Test & validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Unit tests
+        working-directory: app
+        run: |
+          npm ci
+          npm test
+
+      - name: Lint shell scripts
+        run: |
+          bash -n scripts/*.sh
+          shellcheck scripts/*.sh
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+
+      - name: Terraform fmt + validate
+        working-directory: terraform
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false
+          terraform validate
+
+  deploy:
+    name: Deploy (${{ matrix.env }})
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+
+    # Matrix = one job per environment. max-parallel: 1 + fail-fast makes it a
+    # promotion pipeline: dev deploys first, staging only runs if dev succeeded.
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        env: [dev, staging]
+
+    # GitHub Environments hold per-env secrets (AWS_ROLE_ARN) and can require
+    # manual approval - turn that on for "staging".
+    environment: ${{ matrix.env }}
+
+    concurrency:
+      group: deploy-${{ matrix.env }}
+      cancel-in-progress: false
+
+    defaults:
+      run:
+        working-directory: terraform
+
+    env:
+      TF_IN_AUTOMATION: "true"
+      IMAGE_TAG: ${{ github.sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+          terraform_wrapper: false # so `terraform output -raw` is clean
+
+      - name: Terraform init (per-environment state)
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=${{ github.event.repository.name }}/${{ matrix.env }}.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}"
+
+      # Chicken-and-egg: the image must exist before the ECS service starts, but
+      # the ECR repo is managed by Terraform. Create just the repo first.
+      - name: Terraform apply (ECR repository only)
+        run: |
+          terraform apply -input=false -auto-approve \
+            -target=aws_ecr_repository.app \
+            -var-file=envs/${{ matrix.env }}.tfvars \
+            -var="aws_region=${AWS_REGION}"
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push image (skipped if this SHA is already in ECR)
+        run: |
+          REPO_URL=$(terraform output -raw ecr_repository_url)
+          REPO_NAME="${REPO_URL#*/}"
+          if aws ecr describe-images \
+            --repository-name "$REPO_NAME" \
+            --image-ids "imageTag=$IMAGE_TAG" >/dev/null 2>&1; then
+            echo "Image $IMAGE_TAG already exists - skipping build."
+          else
+            docker build --target runtime \
+              --build-arg APP_VERSION="$IMAGE_TAG" \
+              -t "$REPO_URL:$IMAGE_TAG" ../app
+            docker push "$REPO_URL:$IMAGE_TAG"
+          fi
+
+      - name: Terraform apply (full stack)
+        run: |
+          terraform apply -input=false -auto-approve \
+            -var-file=envs/${{ matrix.env }}.tfvars \
+            -var="aws_region=${AWS_REGION}" \
+            -var="image_tag=${IMAGE_TAG}"
+
+      - name: Wait for ECS service to stabilise
+        run: |
+          aws ecs wait services-stable \
+            --cluster "$(terraform output -raw cluster_name)" \
+            --services "$(terraform output -raw service_name)"
+
+      - name: Smoke test
+        run: ../scripts/smoke-test.sh "$(terraform output -raw app_url)"
+
+      - name: Short load test (dev only)
+        if: matrix.env == 'dev'
+        run: |
+          ../scripts/load-test.sh -u "$(terraform output -raw app_url)" \
+            -n 500 -c 20 -e 1 -l 1000
+
+      - name: Summary
+        run: |
+          {
+            echo "### ${{ matrix.env }} deployed :rocket:"
+            echo "- URL: $(terraform output -raw app_url)"
+            echo "- Image tag: \`${IMAGE_TAG}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
