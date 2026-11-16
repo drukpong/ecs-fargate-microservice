@@ -45,7 +45,15 @@
       "Action": [
         "elasticloadbalancing:DescribeListenerAttributes"
       ],
-      "Resource": "arn:aws:elasticloadbalancing:us-east-1:189750305972:listener/app/ecs-api-dev/*/*"
+      "Resource": "*"
+    },
+    {
+      "Sid": "TagECSScalableTargets",
+      "Effect": "Allow",
+      "Action": [
+        "application-autoscaling:TagResource"
+      ],
+      "Resource": "arn:aws:application-autoscaling:us-east-1:189750305972:scalable-target/*"
     }
   ]
 }
