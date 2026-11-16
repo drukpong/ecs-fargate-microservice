@@ -113,6 +113,22 @@ jobs:
 
           rm -f "$RUNNER_TEMP/oidc.jwt"
 
+      - name: Verify AWS role secret
+        env:
+          ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+        run: |
+          EXPECTED="arn:aws:iam::189750305972:role/ecs-fargate-github-${{ matrix.env }}"
+
+          if [ -z "$ROLE_ARN" ]; then
+            echo "ERROR: AWS_ROLE_ARN is empty or unavailable."
+            exit 1
+          elif [ "$ROLE_ARN" != "$EXPECTED" ]; then
+            echo "ERROR: AWS_ROLE_ARN does not match the expected environment role."
+            exit 1
+          else
+            echo "SUCCESS: AWS_ROLE_ARN matches the ${{ matrix.env }} role."
+          fi
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
