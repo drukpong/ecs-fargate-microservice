@@ -54,6 +54,14 @@
         "application-autoscaling:TagResource"
       ],
       "Resource": "arn:aws:application-autoscaling:us-east-1:189750305972:scalable-target/*"
+    },
+    {
+      "Sid": "ListECSScalableTargetTags",
+      "Effect": "Allow",
+      "Action": [
+        "application-autoscaling:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:application-autoscaling:us-east-1:189750305972:scalable-target/*"
     }
   ]
 }
