@@ -1,0 +1,32 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ELBTargetGroupConfiguration",
+      "Effect": "Allow",
+      "Action": [
+        "elasticloadbalancing:ModifyTargetGroupAttributes"
+      ],
+      "Resource": "arn:aws:elasticloadbalancing:us-east-1:189750305972:targetgroup/ecs-api-dev-tg/*"
+    },
+    {
+      "Sid": "InspectECSTaskRolePolicies",
+      "Effect": "Allow",
+      "Action": [
+        "iam:ListRolePolicies"
+      ],
+      "Resource": [
+        "arn:aws:iam::189750305972:role/ecs-api-dev-execution",
+        "arn:aws:iam::189750305972:role/ecs-api-dev-task"
+      ]
+    },
+    {
+      "Sid": "ReadNATElasticIPAttributes",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeAddressesAttribute"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
