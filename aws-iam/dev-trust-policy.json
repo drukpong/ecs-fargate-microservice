@@ -10,10 +10,7 @@
       "Condition": {
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": [
-            "repo:drukpong/ecs-fargate-microservice:environment:dev",
-            "repo:Drukpong/ecs-fargate-microservice:environment:dev"
-          ]
+          "token.actions.githubusercontent.com:sub": "repo:drukpong@293003264/ecs-fargate-microservice@1460156178:environment:dev"
         }
       }
     }
