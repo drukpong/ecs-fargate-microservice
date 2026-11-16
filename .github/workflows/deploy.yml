@@ -61,7 +61,7 @@ jobs:
       fail-fast: true
       max-parallel: 1
       matrix:
-        env: [dev, staging]
+        env: [dev]
 
     # GitHub Environments hold per-env secrets (AWS_ROLE_ARN) and can require
     # manual approval - turn that on for "staging".
