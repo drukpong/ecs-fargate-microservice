@@ -27,6 +27,25 @@
         "ec2:DescribeAddressesAttribute"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "InspectECSTaskInstanceProfiles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:ListInstanceProfilesForRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::189750305972:role/ecs-api-dev-execution",
+        "arn:aws:iam::189750305972:role/ecs-api-dev-task"
+      ]
+    },
+    {
+      "Sid": "InspectALBListenerAttributes",
+      "Effect": "Allow",
+      "Action": [
+        "elasticloadbalancing:DescribeListenerAttributes"
+      ],
+      "Resource": "arn:aws:elasticloadbalancing:us-east-1:189750305972:listener/app/ecs-api-dev/*/*"
     }
   ]
 }
