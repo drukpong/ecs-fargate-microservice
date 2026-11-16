@@ -82,6 +82,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Diagnose GitHub OIDC identity
+        run: |
+          echo "Repository: $GITHUB_REPOSITORY"
+          echo "Ref: $GITHUB_REF"
+          echo "Environment: ${{ matrix.env }}"
+          echo "Expected subject: repo:${GITHUB_REPOSITORY}:environment:${{ matrix.env }}"
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
